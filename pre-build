@@ -26,17 +26,21 @@ id=$(docker run -i -a stdin $IMAGE /bin/bash -c "mkdir -p /app/.ssh")
 test $(docker wait $id) -eq 0
 docker commit $id $IMAGE > /dev/null
 
-# 2. Transfer the app specific private key to the container
-idWithKeys=$(cat "$FINAL_SSH_FOLDER/id_rsa" | docker run -i -a stdin $IMAGE /bin/bash -c "cat >> /app/.ssh/id_rsa && chmod 600 /app/.ssh/id_rsa")
-test $(docker wait $idWithKeys) -eq 0
-docker commit $idWithKeys $IMAGE > /dev/null
+add_file() {
+  container_id=$(cat "$1" | docker run -i -a stdin $IMAGE /bin/bash -c "cat >> $2")
+  test $(docker wait $container_id) -eq 0
+  docker commit $container_id $IMAGE > /dev/null
+}
 
-# 3. Transfer the app specific public key to the container
-idWithPublicKeys=$(cat "$FINAL_SSH_FOLDER/id_rsa.pub" | docker run -i -a stdin $IMAGE /bin/bash -c "cat >> /app/.ssh/id_rsa.pub && chmod 600 /app/.ssh/id_rsa && chmod 644 /app/.ssh/id_rsa.pub && chown -R 1001:1001 /app/.ssh")
-test $(docker wait $idWithPublicKeys) -eq 0
-docker commit $idWithPublicKeys $IMAGE > /dev/null
+for file in "$FINAL_SSH_FOLDER"/*; do
+  add_file "$file" "/app/.ssh/$(basename $file)"
+done
 
-# 4. Add identity file option to global SSH config
-idWithConfig=$(echo "IdentityFile /app/.ssh/id_rsa" | docker run -i -a stdin $IMAGE /bin/bash -c "cat >> /etc/ssh/ssh_config" )
-test $(docker wait $idWithConfig) -eq 0
-docker commit $idWithConfig $IMAGE > /dev/null
+if [ -e "$FINAL_SSH_FOLDER/config" ]; then
+  add_file "$FINAL_SSH_FOLDER/config" "/etc/ssh/ssh_config"
+fi
+
+container_id=$(docker run -i $IMAGE /bin/bash -c "chmod -R 600 /app/.ssh && chmod 700 /app/.ssh")
+test $(docker wait $container_id) -eq 0
+docker commit $container_id $IMAGE > /dev/null
+
