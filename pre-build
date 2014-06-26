@@ -40,7 +40,7 @@ if [ -e "$FINAL_SSH_FOLDER/config" ]; then
   add_file "$FINAL_SSH_FOLDER/config" "/etc/ssh/ssh_config"
 fi
 
-container_id=$(docker run -i $IMAGE /bin/bash -c "chmod -R 600 /app/.ssh && chmod 700 /app/.ssh")
+container_id=$(docker run -i -a stdin $IMAGE /bin/bash -c "chmod -R 600 /app/.ssh && chmod 700 /app/.ssh")
 test $(docker wait $container_id) -eq 0
 docker commit $container_id $IMAGE > /dev/null
 
